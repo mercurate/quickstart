@@ -32,3 +32,13 @@ from localsettings import *
 
 * add default HOST:
 HOST = 'http://0.0.0.0:8088'
+
+* add simple bin tools
+
+* add default base.html and home.html
+
+* add default views.py in HERE, and add basic imports and home view, make it easy to dev simple app
+
+* add utils.py, provide general dev helpful tools
+
+* add static dir and styles.css and scripts.js in it
