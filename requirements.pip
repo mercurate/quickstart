@@ -1,0 +1,11 @@
+MySQL-python
+python-ldap
+chardet
+mercurial
+flup
+Pygments
+Django
+django-cpserver
+django-celery
+django-auth-ldap
+simplejson

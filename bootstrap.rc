@@ -1,0 +1,402 @@
+# Absolute path to this script. /home/user/bin/foo.sh
+SCRIPT=$(readlink -f ${PWD}/${BASH_SOURCE})
+
+# Absolute path this script is in. /home/user/bin
+TOP_PATH=`dirname $SCRIPT`
+
+export PIP_INDEX_URL="http://10.10.20.223:8089"
+export mg="$TOP_PATH/ENV/bin/python $TOP_PATH/manage.py"
+export PATH="$PATH:$TOP_PATH/bin/"
+
+function _virtualenv_task {
+    virtualenv --unzip-setuptools --no-site-packages --distribute $TOP_PATH/ENV
+}
+
+function _pip_task {
+    $TOP_PATH/ENV/bin/pip install -r $TOP_PATH/requirements.pip
+}
+
+function _init_task {
+    _virtualenv_task
+    _pip_task
+}
+
+function _mkskeleton {
+    mkdir -p "$TOP_PATH/apps" "$TOP_PATH/bin" "$TOP_PATH/docs" "$TOP_PATH/media" "$TOP_PATH/settings" "$TOP_PATH/scripts" "$TOP_PATH/static" "$TOP_PATH/templates"
+
+    touch "$TOP_PATH/__init__.py" "$TOP_PATH/apps/__init__.py"
+}
+
+function _skeleton_task {
+    _mkskeleton
+
+    REQUIREMENTS_PIP="Django
+django-auth-ldap
+South
+django-cpserver
+python-ldap
+# django-debug-toolbar
+MySQL-python
+"
+    if [ ! -e "$TOP_PATH/requirements.pip" ]; then
+        echo "$REQUIREMENTS_PIP" > "$TOP_PATH/requirements.pip"
+    fi
+
+    RUN_WSGI_SCRIPT="import os
+import site
+
+PROJECT_ROOT = os.path.dirname(__file__)
+ROOT_PATH = os.path.abspath(os.path.join(PROJECT_ROOT, '../'))
+
+ALLDIRS = [os.path.join(ROOT_PATH, 'ENV/lib/python2.7/site-packages'), os.path.join(ROOT_PATH, 'sites')]
+
+prev_sys_path = list(sys.path) 
+for directory in ALLDIRS:
+    site.addsitedir(directory)
+
+new_sys_path = [] 
+for item in list(sys.path): 
+    if item not in prev_sys_path: 
+        new_sys_path.append(item) 
+        sys.path.remove(item) 
+sys.path[:0] = new_sys_path 
+
+os.environ['DJANGO_SETTINGS_MODULE'] = 'settings'
+
+import django.core.handlers.wsgi
+application = django.core.handlers.wsgi.WSGIHandler()
+"
+    if [ ! -e "$TOP_PATH/scripts/run.wsgi" ]; then
+        echo "$RUN_WSGI_SCRIPT" > "$TOP_PATH/scripts/run.wsgi"
+    fi
+
+    APPS_URLS="from django.conf.urls.defaults import patterns, include, url
+from django.contrib.staticfiles.urls import staticfiles_urlpatterns
+from django.conf.urls.static import static
+from django.conf import settings
+
+# Uncomment the next two lines to enable the admin:
+from django.contrib import admin
+admin.autodiscover()
+
+urlpatterns = patterns('',
+    # Examples:
+    # url(r'^$', 'djangotemplate.views.home', name='home'),
+    # url(r'^djangotemplate/', include('djangotemplate.foo.urls')),
+
+    # Uncomment the admin/doc line below to enable admin documentation:
+    url(r'^admin/doc/', include('django.contrib.admindocs.urls')),
+
+    # Uncomment the next line to enable the admin:
+    url(r'^admin/', include(admin.site.urls)),
+)
+
+if settings.DEBUG:
+    urlpatterns += staticfiles_urlpatterns()
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+"
+    if [ ! -e "$TOP_PATH/urls.py" ]; then
+        echo "$APPS_URLS" > "$TOP_PATH/urls.py"
+    fi
+
+    BIN_MANAGE="#!/usr/bin/env python
+from django.core.management import execute_manager
+import imp
+
+try:
+    imp.find_module('settings') # Assumed to be in the same directory.
+except ImportError:
+    import sys
+    sys.stderr.write(\"Error: Can't find the file 'settings.py' in the directory containing %r. It appears you've customized things.\nYou'll have to run django-admin.py, passing it your settings module.\n\" % __file__)
+    sys.exit(1)
+
+import settings
+
+if __name__ == \"__main__\":
+    execute_manager(settings)
+"
+
+    if [ ! -e "$TOP_PATH/bin/manage.py" ]; then
+        echo "$BIN_MANAGE" > "$TOP_PATH/manage.py"
+    fi
+
+    SETTINGS_INIT="SETTINGS = 'develop'
+try:
+    from which import SETTINGS
+except:
+    pass
+exec 'from %s import *' % SETTINGS
+"
+    if [ ! -e "$TOP_PATH/settings/__init__.py" ]; then
+        echo "$SETTINGS_INIT" > "$TOP_PATH/settings/__init__.py"
+    fi
+
+    SETTINGS_BASE="# Django settings for SPIG Django projects.
+
+import os, sys
+HERE = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.join(HERE, '../')
+
+sys.path.insert(0, PROJECT_ROOT)
+
+DEBUG = True
+TEMPLATE_DEBUG = DEBUG
+
+ADMINS = (
+    # ('Your Name', 'your_email@example.com'),
+)
+
+MANAGERS = ADMINS
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',            # Add 'postgresql_psycopg2', 'postgresql', 'mysql', 'sqlite3' or 'oracle'.
+        'NAME': os.path.join(PROJECT_ROOT, 'db.sqlite'),   # Or path to database file if using sqlite3.
+        'USER': '',                      # Not used with sqlite3.
+        'PASSWORD': '',                  # Not used with sqlite3.
+        'HOST': '',                      # Set to empty string for localhost. Not used with sqlite3.
+        'PORT': '',                      # Set to empty string for default. Not used with sqlite3.
+    }
+}
+
+# Local time zone for this installation. Choices can be found here:
+# http://en.wikipedia.org/wiki/List_of_tz_zones_by_name
+# although not all choices may be available on all operating systems.
+# On Unix systems, a value of None will cause Django to use the same
+# timezone as the operating system.
+# If running in a Windows environment this must be set to the same as your
+# system time zone.
+TIME_ZONE = 'Asia/Hong_Kong'
+
+# Language code for this installation. All choices can be found here:
+# http://www.i18nguy.com/unicode/language-identifiers.html
+LANGUAGE_CODE = 'zh-cn'
+
+SITE_ID = 1
+
+# If you set this to False, Django will make some optimizations so as not
+# to load the internationalization machinery.
+USE_I18N = True
+
+# If you set this to False, Django will not format dates, numbers and
+# calendars according to the current locale
+USE_L10N = True
+
+# Absolute filesystem path to the directory that will hold user-uploaded files.
+# Example: \"/home/media/media.lawrence.com/media/\"
+MEDIA_ROOT = os.path.join(PROJECT_ROOT, 'media')
+
+# URL that handles the media served from MEDIA_ROOT. Make sure to use a
+# trailing slash.
+# Examples: \"http://media.lawrence.com/media/\", \"http://example.com/media/\"
+MEDIA_URL = '/media/'
+
+# Absolute path to the directory static files should be collected to.
+# Don't put anything in this directory yourself; store your static files
+# in apps' \"static/\" subdirectories and in STATICFILES_DIRS.
+# Example: \"/home/media/media.lawrence.com/static/\"
+STATIC_ROOT = os.path.join(PROJECT_ROOT, 'collectedstatic')
+
+# URL prefix for static files.
+# Example: \"http://media.lawrence.com/static/\"
+STATIC_URL = '/static/'
+
+# URL prefix for admin static files -- CSS, JavaScript and images.
+# Make sure to use a trailing slash.
+# Examples: \"http://foo.com/static/admin/\", \"/static/admin/\".
+ADMIN_MEDIA_PREFIX = '/static/admin/'
+
+# Additional locations of static files
+STATICFILES_DIRS = (
+    os.path.join(PROJECT_ROOT, 'static/'),
+    # Put strings here, like \"/home/html/static\" or \"C:/www/django/static\".
+    # Always use forward slashes, even on Windows.
+    # Don't forget to use absolute paths, not relative paths.
+)
+
+# List of finder classes that know how to find static files in
+# various locations.
+STATICFILES_FINDERS = (
+    'django.contrib.staticfiles.finders.FileSystemFinder',
+    'django.contrib.staticfiles.finders.AppDirectoriesFinder',
+#    'django.contrib.staticfiles.finders.DefaultStorageFinder',
+)
+
+# Make this unique, and don't share it with anybody.
+SECRET_KEY = '' # '&(^z)7qj1!$12by^q%v3&bmwgasm+1ts_kfr0eu(h%4fipyukt'
+
+# List of callables that know how to import templates from various sources.
+TEMPLATE_LOADERS = (
+    'django.template.loaders.filesystem.Loader',
+    'django.template.loaders.app_directories.Loader',
+#     'django.template.loaders.eggs.Loader',
+)
+
+MIDDLEWARE_CLASSES = (
+    'django.middleware.common.CommonMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+)
+
+ROOT_URLCONF = 'urls'
+
+TEMPLATE_DIRS = (
+    # Put strings here, like \"/home/html/django_templates\" or \"C:/www/django/templates\".
+    # Always use forward slashes, even on Windows.
+    # Don't forget to use absolute paths, not relative paths.
+    os.path.join(PROJECT_ROOT, 'templates'),
+)
+
+INSTALLED_APPS = (
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+#     'django.contrib.sites',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    # Uncomment the next line to enable the admin:
+    'django.contrib.admin',
+    # Uncomment the next line to enable admin documentation:
+    'django.contrib.admindocs',
+)
+
+# A sample logging configuration. The only tangible logging
+# performed by this configuration is to send an email to
+# the site admins on every HTTP 500 error.
+# See http://docs.djangoproject.com/en/dev/topics/logging for
+# more details on how to customize your logging configuration.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'mail_admins': {
+            'level': 'ERROR',
+            'class': 'django.utils.log.AdminEmailHandler'
+        }
+    },
+    'loggers': {
+        'django.request': {
+            'handlers': ['mail_admins'],
+            'level': 'ERROR',
+            'propagate': True,
+        },
+    }
+}
+"
+    if [ ! -e "$TOP_PATH/settings/base.py" ]; then
+        echo "$SETTINGS_BASE" > "$TOP_PATH/settings/base.py"
+    fi
+
+    SETTINGS_DEVELOP="from base import *
+
+DEBUG = True
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+#devserver
+MIDDLEWARE_CLASSES += ()   # Add extra classes here
+INSTALLED_APPS += ()       # Add extra apps here
+
+try:
+    from local import *
+except:
+    pass
+"
+    if [ ! -e "$TOP_PATH/settings/develop.py" ]; then
+        echo "$SETTINGS_DEVELOP" > "$TOP_PATH/settings/develop.py"
+    fi
+
+    SETTINGS_PRODUCT="from base import *
+
+DEBUG = False
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+
+#devserver
+MIDDLEWARE_CLASSES += ()   # Add extra classes here
+INSTALLED_APPS += ()       # Add extra apps here
+
+try:
+    from local import *
+except:
+    pass
+"
+    if [ ! -e "$TOP_PATH/settings/product.py" ]; then
+        echo "$SETTINGS_PRODUCT" > "$TOP_PATH/settings/product.py"
+    fi
+
+    SETTINGS_LOCAL="# Extra local settings here
+# Rename this file to local.py before using: mv local.py.sample local.py
+"
+
+    if [ ! -e "$TOP_PATH/settings/local.py.sample" ]; then
+        echo "$SETTINGS_LOCAL" > "$TOP_PATH/settings/local.py.sample"
+    fi
+
+    SETTINGS_WHICH="# Set target deploy type here here: develop or product
+# Rename this file to which.py before using: mv which.py.sample which.py
+SETTINGS = 'product'
+"
+    if [ ! -e "$TOP_PATH/settings/which.py.sample" ]; then
+        echo "$SETTINGS_WHICH" > "$TOP_PATH/settings/which.py.sample"
+    fi
+
+}
+
+##############  parse options  ############################
+
+if [ -z "${VIRTUAL_ENV+x}" ] && [ -e $TOP_PATH/ENV/bin/activate ] && [ $# -eq 0 ]; then  ## activate 已存在，且未传入任何参数
+    echo Found "ENV/bin/activate" script, activating current ENV ...
+    source $TOP_PATH/ENV/bin/activate && echo DONE && return ## 激活当前 ENV 并退出
+fi
+
+if [ -z "${VIRTUAL_ENV+x}" ] && [ $# -eq 0 ]; then ## 参数为空，且未设置 VIRTUAL_ENV
+    _init_task
+    source $TOP_PATH/ENV/bin/activate
+else
+    if [ -n "${VIRTUAL_ENV+x}" ]; then  ## VIRTUAL_ENV 环境变量已设置，须执行 deactivate
+        deactivate
+    fi
+    
+    while getopts ":ivpsh" optname
+      do
+        case "$optname" in
+          "i")
+            _init_task
+            source $TOP_PATH/ENV/bin/activate
+            ;;
+          "v")
+            _virtualenv_task
+            source $TOP_PATH/ENV/bin/activate
+            ;;
+          "p")
+            _pip_task
+            source $TOP_PATH/ENV/bin/activate
+            ;;
+          "s")
+            _skeleton_task
+            ;;
+          "?")
+            echo "Unknown option -$OPTARG"
+            ;;
+          "h")
+            echo "usage: source bootstrap.rc [-i | -v | -p | -h]"
+            echo "-i        initial environment, this will execute both '-v' and '-p' options"
+            echo "-v        install & create & activate virtualenv"
+            echo "-p        (re)install required packages through pip"
+            echo "-s        create project skeleton based on SPIG django project specification"
+            echo "-h        print this help"
+            ;;
+          ":")
+            echo "No argument value for option -$OPTARG"
+            ;;
+          *)
+            # Should not occur
+            echo "Unknown error while processing options"
+            ;;
+        esac
+      done
+
+    OPTIND=0
+fi
+
