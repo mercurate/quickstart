@@ -1,6 +1,6 @@
 update log:
 
-20111104:
+** 20111104:
 * add this to .py top:
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
